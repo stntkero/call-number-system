@@ -29,9 +29,7 @@
             height: 100%;
             pointer-events: none; /* 讓浮水印不阻礙滑鼠事件，可以點擊下面的內容 */
             z-index: -1; /* 確保浮水印在內容下方 */
-            opacity: 0.15;
-            
-            /* 關鍵修改點：設定背景圖片、不重複、置中 */
+            opacity: 0.15;            
             background-image: url('S_20201212201652rmmK.jpg'); /* **替換為你的圖片檔案名稱** */
             background-repeat: no-repeat; /* 不重複顯示圖片 */
             background-position: center center; /* 將圖片置中 */
@@ -40,7 +38,7 @@
 
         /* --- 容器 CSS (保持不變，或根據需求調整透明度) --- */
         .container {
-            background-color: rgba(255, 255, 255, 0.8); /* 白色，透明度為 80% */
+            background-color: rgba(255, 255, 255, 0.7); /* 白色，透明度為 80% */
             padding: 40px 60px;
             border-radius: 15px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
@@ -74,7 +72,8 @@
     </style>
 </head>
 <body>
-    <div class="watermark-image"></div> <div class="container">
+    <div class="watermark-image"></div> 
+    <div class="container">
         <div class="label">目前叫號</div>
         <div id="currentNumber">載入中...</div>
     </div>
