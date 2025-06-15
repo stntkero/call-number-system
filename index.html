@@ -15,7 +15,30 @@
             margin: 0;
             background-color: #f0f2f5;
             color: #333;
+	    position: relative;
+    	    overflow: hidden;
         }
+	/* --- 浮水印 CSS 開始 --- */
+        .watermark-image {
+	    position: fixed;
+	    top: 0;
+	    left: 0;
+	    width: 100%;
+	    height: 100%;
+	    pointer-events: none;
+	    z-index: -1;
+	    opacity: 0.15; /* 調整透明度 */
+	    background-image: url('https://www.kiwanis.org.tw/upload/clubMship/S_20201212201537Axk5.jpg'); /* **替換為你的浮水印圖片路徑** */
+	    /* 如果要重複顯示圖片 */
+	    /* background-repeat: repeat; */
+	    /*background-size: 200px 200px; /* 調整每個重複圖片的大小 */
+	
+	    /* 如果只顯示一張圖片在中間 */
+	    background-repeat: no-repeat;
+	    background-position: center center;
+	    background-size: contain; /* 確保圖片完全顯示，不裁切 */
+	}
+        /* --- 浮水印 CSS 結束 --- */
         .container {
             background-color: #ffffff;
             padding: 40px 60px;
