@@ -15,47 +15,50 @@
             margin: 0;
             background-color: #f0f2f5;
             color: #333;
-	    position: relative;
-    	    overflow: hidden;
+
+            position: relative; /* 確保 body 是定位上下文 */
+            overflow: hidden; /* 防止浮水印超出視口引起滾動條 */
         }
-	/* --- 浮水印 CSS --- */
+
+        /* --- 浮水印 CSS (修改這裡) --- */
         .watermark-image {
-	    position: fixed;
-	    top: 0;
-	    left: 0;
-	    width: 100%;
-	    height: 100%;
-	    pointer-events: none;
-	    z-index: -1;
-	    opacity: 0.15; /* 調整透明度 */
-	    background-image: url('https://www.kiwanis.org.tw/upload/imgDB/S_20201212201652rmmK.jpg'); /* **替換為你的浮水印圖片路徑** */
-	    /* 如果要重複顯示圖片 */
-	    /* background-repeat: repeat; */
-	    /*background-size: 200px 200px; /* 調整每個重複圖片的大小 */
-	
-	    /* 如果只顯示一張圖片在中間 */
-	    background-repeat: no-repeat;
-	    background-position: center center;
-	    background-size: contain; /* 確保圖片完全顯示，不裁切 */
-	}
-	
+            position: fixed; /* 固定在視口，不隨滾動條移動 */
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* 讓浮水印不阻礙滑鼠事件，可以點擊下面的內容 */
+            z-index: -1; /* 確保浮水印在內容下方 */
+            /* opacituy: 0.15; 這個透明度應該在圖片本身就處理好 */
+
+            /* 關鍵修改點：設定背景圖片、不重複、置中 */
+            background-image: url('https://www.kiwanis.org.tw/upload/imgDB/S_20201212201652rmmK.jpg'); /* **替換為你的圖片檔案名稱** */
+            background-repeat: no-repeat; /* 不重複顯示圖片 */
+            background-position: center center; /* 將圖片置中 */
+            background-size: contain; /* 確保圖片完整顯示在元素內，不裁切 */
+        }
+
+        /* --- 容器 CSS (保持不變，或根據需求調整透明度) --- */
         .container {
-            background-color: rgba(255, 255, 255, 0.5);
+            background-color: rgba(255, 255, 255, 0.8); /* 白色，透明度為 80% */
             padding: 40px 60px;
             border-radius: 15px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
             text-align: center;
+            position: relative;
+            z-index: 1;
         }
+
         .label {
             font-size: 2.2em;
             margin-bottom: 25px;
             color: #555;
         }
         #currentNumber {
-            font-size: 10em; /* 超大字體 */
+            font-size: 10em;
             font-weight: bold;
-            color: #007bff; /* 藍色 */
-            animation: pulse 1.5s infinite alternate; /* 添加脈衝動畫 */
+            color: #007bff;
+            animation: pulse 1.5s infinite alternate;
         }
 
         @keyframes pulse {
@@ -71,8 +74,7 @@
     </style>
 </head>
 <body>
-    <div class="watermark-image"></div>
-    <div class="container">
+    <div class="watermark-image"></div> <div class="container">
         <div class="label">目前叫號</div>
         <div id="currentNumber">載入中...</div>
     </div>
@@ -82,32 +84,30 @@
 
     <script>
         const API_URL = 'https://script.google.com/macros/s/AKfycbyHiRm-ZAJROA6hhtPaumG9THqwWEKcpjKtJHvURsI2mCZks3Rtp4aIN4rvK2TyFXl_/exec'; // **重要：將這裡替換成你剛剛複製的 Apps Script URL**
-		function updateNumber() {
-			fetch(API_URL)
-			.then(response => {
-				if (!response.ok) {
-					throw new Error('Network response was not ok ' + response.statusText);
-				}
-				return response.json();
-				})
-				.then(data => {
-					if (data && data.number !== undefined) {
-					document.getElementById('currentNumber').textContent = data.number;
-				} else {
-					console.error('API 返回數據格式不正確:', data);
-					document.getElementById('currentNumber').textContent = '錯誤 (數據)';
-				}
-			})
-			.catch(error => {
-				console.error('獲取號碼失敗:', error);
-				document.getElementById('currentNumber').textContent = '錯誤 (連線)';
-			});
-		}
 
-        // 每 分鐘更新一次號碼 (60000 毫秒)
-        setInterval(updateNumber, 60000);
+        function updateNumber() {
+            fetch(API_URL)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok ' + response.statusText);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data && data.number !== undefined) {
+                        document.getElementById('currentNumber').textContent = data.number;
+                    } else {
+                        console.error('API 返回數據格式不正確:', data);
+                        document.getElementById('currentNumber').textContent = '錯誤 (數據)';
+                    }
+                })
+                .catch(error => {
+                    console.error('獲取號碼失敗:', error);
+                    document.getElementById('currentNumber').textContent = '錯誤 (連線)';
+                });
+        }
 
-        // 頁面載入時先執行一次更新
+        setInterval(updateNumber, 3000);
         updateNumber();
     </script>
 </body>
