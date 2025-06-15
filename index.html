@@ -29,10 +29,10 @@
             height: 100%;
             pointer-events: none; /* 讓浮水印不阻礙滑鼠事件，可以點擊下面的內容 */
             z-index: -1; /* 確保浮水印在內容下方 */
-            /* opacituy: 0.15; 這個透明度應該在圖片本身就處理好 */
-
+            opacituy: 0.15; 這個透明度應該在圖片本身就處理好
+            
             /* 關鍵修改點：設定背景圖片、不重複、置中 */
-            background-image: url('https://www.kiwanis.org.tw/upload/imgDB/S_20201212201652rmmK.jpg'); /* **替換為你的圖片檔案名稱** */
+            background-image: url('S_20201212201652rmmK.jpg'); /* **替換為你的圖片檔案名稱** */
             background-repeat: no-repeat; /* 不重複顯示圖片 */
             background-position: center center; /* 將圖片置中 */
             background-size: contain; /* 確保圖片完整顯示在元素內，不裁切 */
@@ -79,7 +79,7 @@
         <div id="currentNumber">載入中...</div>
     </div>
     <div class="footer">
-        <p>叫號系統由 Google Sheets & GitHub Pages 提供</p>
+        
     </div>
 
     <script>
