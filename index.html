@@ -46,9 +46,8 @@
             z-index: 1;
             width: calc(100% - 40px); /* 讓寬度為螢幕寬度減去左右各 20px 的間距 */
             max-width: 600px; /* 設定最大寬度，例如 600px，避免在大螢幕上過寬 */
-            margin-left: auto; /* 水平居中 */
-            margin-right: auto; /* 水平居中 */
-            padding: 30px 10px; /* 垂直 30px，水平 40px */
+            margin: 50px auto;
+            padding: 30px 5vh; /* 垂直 30px，水平 40px */
             box-sizing: border-box; /* 確保 padding 不會增加 width/height 的計算 */
         }
 
@@ -65,7 +64,7 @@
         }
 
         #loadingText {
-            font-size: 30vw;
+            font-size: 20vw;
             font-weight: bold;
             color: #006bee; /* 載入文字可以顏色淡一點 */
             animation: pulse 1.5s infinite alternate;
