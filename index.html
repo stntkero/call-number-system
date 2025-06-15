@@ -18,7 +18,7 @@
 	    position: relative;
     	    overflow: hidden;
         }
-	/* --- 浮水印 CSS 開始 --- */
+	/* --- 浮水印 CSS --- */
         .watermark-image {
 	    position: fixed;
 	    top: 0;
@@ -38,10 +38,9 @@
 	    background-position: center center;
 	    background-size: contain; /* 確保圖片完全顯示，不裁切 */
 	}
-        /* --- 浮水印 CSS 結束 --- */
+	
         .container {
-            background-color: #ffffff;
-	    opacity: 0.15;
+            background-color: rgba(255, 255, 255, 0.5);
             padding: 40px 60px;
             border-radius: 15px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
