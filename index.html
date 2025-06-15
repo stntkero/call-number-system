@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>叫號系統</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f2f5;
+            color: #333;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 40px 60px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        .label {
+            font-size: 2.2em;
+            margin-bottom: 25px;
+            color: #555;
+        }
+        #currentNumber {
+            font-size: 10em; /* 超大字體 */
+            font-weight: bold;
+            color: #007bff; /* 藍色 */
+            animation: pulse 1.5s infinite alternate; /* 添加脈衝動畫 */
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.05); opacity: 0.9; }
+        }
+
+        .footer {
+            margin-top: 30px;
+            font-size: 0.9em;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="label">目前叫號</div>
+        <div id="currentNumber">載入中...</div>
+    </div>
+    <div class="footer">
+        <p>叫號系統由 Google Sheets & GitHub Pages 提供</p>
+    </div>
+
+    <script>
+        const API_URL = 'https://script.google.com/macros/s/AKfycbyHiRm-ZAJROA6hhtPaumG9THqwWEKcpjKtJHvURsI2mCZks3Rtp4aIN4rvK2TyFXl_/exec'; // **重要：將這裡替換成你剛剛複製的 Apps Script URL**
+		function updateNumber() {
+			fetch(API_URL)
+			.then(response => {
+				if (!response.ok) {
+					throw new Error('Network response was not ok ' + response.statusText);
+				}
+				return response.json();
+				})
+				.then(data => {
+					if (data && data.number !== undefined) {
+					document.getElementById('currentNumber').textContent = data.number;
+				} else {
+					console.error('API 返回數據格式不正確:', data);
+					document.getElementById('currentNumber').textContent = '錯誤 (數據)';
+				}
+			})
+			.catch(error => {
+				console.error('獲取號碼失敗:', error);
+				document.getElementById('currentNumber').textContent = '錯誤 (連線)';
+			});
+		}
+
+        // 每 分鐘更新一次號碼 (60000 毫秒)
+        setInterval(updateNumber, 60000);
+
+        // 頁面載入時先執行一次更新
+        updateNumber();
+    </script>
+</body>
+</html>
+```
+
+  * **重要：** 將 `const API_URL = 'YOUR_APPS_SCRIPT_WEB_APP_URL_HERE';` 中的 `YOUR_APPS_SCRIPT_WEB_APP_URL_HERE` **替換成你從 Google Apps Script 複製下來的 "網頁應用程式 URL"**。
+  * 這個 HTML 檔案包含了所有的樣式 (CSS) 和邏輯 (JavaScript)，所以你不需要額外的檔案。
