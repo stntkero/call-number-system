@@ -60,6 +60,14 @@
             animation: pulse 1.5s infinite alternate;
         }
 
+        #loadingText {
+            font-size: 5vm;
+            font-weight: bold;
+            color: #888; /* 載入文字可以顏色淡一點 */
+            animation: pulse 1.5s infinite alternate;
+            white-space: nowrap;
+        }
+
         @keyframes pulse {
             0% { transform: scale(1); opacity: 1; }
             100% { transform: scale(1.05); opacity: 0.9; }
@@ -76,7 +84,9 @@
     <div class="watermark-image"></div> 
     <div class="container">
         <div class="label">目前叫號</div>
-        <div id="currentNumber">載入中...</div>
+        <div id="currentNumber">
+            <span id="loadingText">載入中...</span>
+        </div>
     </div>
     <div class="footer">
         
