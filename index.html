@@ -39,12 +39,19 @@
         /* --- 容器 CSS (保持不變，或根據需求調整透明度) --- */
         .container {
             background-color: rgba(255, 255, 255, 0.5); /* 白色，透明度為 50% */
-            padding: 40px 60px;
             border-radius: 15px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
             text-align: center;
             position: relative;
             z-index: 1;
+            width: calc(100% - 40px); /* 讓寬度為螢幕寬度減去左右各 20px 的間距 */
+            max-width: 600px; /* 設定最大寬度，例如 600px，避免在大螢幕上過寬 */
+            margin-left: auto; /* 水平居中 */
+            margin-right: auto; /* 水平居中 */
+            margin-top: 50px; /* 距離頂部邊緣的距離 */
+            margin-bottom: 50px; /* 距離底部邊緣的距離 */
+            padding: 30px 5vw; /* 垂直 30px，水平 5vw (視口寬度的 5%) */
+            box-sizing: border-box; /* 確保 padding 不會增加 width/height 的計算 */
         }
 
         .label {
