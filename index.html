@@ -3,125 +3,455 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>叫號系統</title>
+    <title>國光同濟會 捐血叫號</title>
+    <meta name="description" content="國光同濟會捐血活動即時叫號，輸入您的號碼即可查看前面還有幾位。">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="國光同濟會 捐血叫號">
+    <meta property="og:description" content="即時查看目前叫號，輸入您的號碼即可查看前面還有幾位。">
+    <meta property="og:image" content="https://stntkero.github.io/call-number-system/logo.jpg">
+    <meta property="og:url" content="https://stntkero.github.io/call-number-system/">
+    <link rel="icon" href="logo.jpg">
     <style>
+        :root {
+            --primary: #007bff;
+            --text: #333;
+            --muted: #666;
+            --soon: #e67e00;
+            --now: #1e9e4a;
+            --warn: #c0392b;
+        }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, 'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
+            min-height: 100dvh; /* 扣掉手機瀏覽器工具列的實際高度 */
             margin: 0;
+            padding: 16px;
+            box-sizing: border-box;
             background-color: #f0f2f5;
-            color: #333;
-
-            position: relative; /* 確保 body 是定位上下文 */
-            overflow: hidden; /* 防止浮水印超出視口引起滾動條 */
+            color: var(--text);
         }
 
-        /* --- 浮水印 CSS (修改這裡) --- */
+        /* --- 浮水印 --- */
         .watermark-image {
-            position: fixed; /* 固定在視口，不隨滾動條移動 */
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none; /* 讓浮水印不阻礙滑鼠事件，可以點擊下面的內容 */
-            z-index: -1; /* 確保浮水印在內容下方 */
-            opacity: 0.15;            
-            background-image: url('S_20201212201652rmmK.jpg'); /* **替換為你的圖片檔案名稱** */
-            background-repeat: no-repeat; /* 不重複顯示圖片 */
-            background-position: center center; /* 將圖片置中 */
-            background-size: contain; /* 確保圖片完整顯示在元素內，不裁切 */
+            position: fixed; /* 固定在視口，不隨捲動移動 */
+            inset: 0;
+            pointer-events: none; /* 讓浮水印不阻礙點擊 */
+            z-index: -1;
+            opacity: 0.15;
+            background: url('logo.jpg') no-repeat center center / contain;
         }
 
-        /* --- 容器 CSS (保持不變，或根據需求調整透明度) --- */
         .container {
             background-color: rgba(255, 255, 255, 0.5); /* 白色，透明度為 50% */
             border-radius: 15px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
             text-align: center;
-            position: relative;
-            z-index: 1;
-            width: calc(100% - 40px); /* 讓寬度為螢幕寬度減去左右各 20px 的間距 */
-            max-width: 600px; /* 設定最大寬度，例如 600px，避免在大螢幕上過寬 */
-            margin: 50px auto;
-            padding: 30px 5vh; /* 垂直 30px，水平 40px */
-            box-sizing: border-box; /* 確保 padding 不會增加 width/height 的計算 */
+            width: 100%;
+            max-width: 600px;
+            padding: 24px 20px;
+            box-sizing: border-box;
+        }
+
+        .container + .container {
+            margin-top: 16px;
+        }
+
+        .status-banner {
+            background: #fff3cd;
+            color: #7a5200;
+            border-radius: 10px;
+            padding: 10px 14px;
+            margin-bottom: 16px;
+            font-size: 1.2em;
+            font-weight: bold;
         }
 
         .label {
-            font-size: 2.2em;
-            margin-bottom: 25px;
+            font-size: 2em;
             color: #555;
         }
+
         #currentNumber {
-            font-size: 10em;
+            font-size: clamp(4rem, 26vw, 10rem); /* 窄螢幕自動縮小，四位數也放得下 */
             font-weight: bold;
-            color: #007bff;
-            animation: pulse 1.5s infinite alternate;
+            line-height: 1.15;
+            color: var(--primary);
+            font-variant-numeric: tabular-nums;
         }
 
-        #loadingText {
-            font-size: 25vw;
-            font-weight: bold;
-            color: #005bee; /* 載入文字可以顏色淡一點 */
-            animation: pulse 0.5s infinite alternate;
-            white-space: nowrap;
+        #currentNumber.loading {
+            font-size: clamp(2.5rem, 14vw, 4rem);
+            padding: 0.6em 0;
+            animation: blink 0.8s infinite alternate;
         }
 
-        @keyframes pulse {
-            0% { transform: scale(1); opacity: 1; }
-            100% { transform: scale(1.05); opacity: 0.9; }
+        /* 號碼變動時閃一下，平常保持靜止 */
+        #currentNumber.changed {
+            animation: called 1.2s ease-out;
+        }
+
+        @keyframes blink {
+            to { opacity: 0.4; }
+        }
+
+        @keyframes called {
+            0% { transform: scale(1.25); color: var(--soon); }
+            100% { transform: scale(1); color: var(--primary); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            #currentNumber.loading,
+            #currentNumber.changed {
+                animation: none;
+            }
+        }
+
+        .connection {
+            font-size: 0.95em;
+            color: var(--muted);
+            min-height: 1.4em;
+        }
+
+        .connection.warn {
+            color: var(--warn);
+            font-weight: bold;
+        }
+
+        /* --- 我的號碼 --- */
+        .my-form label {
+            display: block;
+            font-size: 1.3em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .my-form .row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .my-form input {
+            flex: 1;
+            min-width: 0;
+            font-size: 1.4em;
+            padding: 10px 12px;
+            border: 2px solid #ccc;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .my-form input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        button {
+            font: inherit;
+            cursor: pointer;
+            border: none;
+            border-radius: 10px;
+        }
+
+        .my-form button {
+            font-size: 1.2em;
+            padding: 10px 20px;
+            background: var(--primary);
+            color: #fff;
+        }
+
+        .my-line {
+            font-size: 1.2em;
+        }
+
+        .my-line strong {
+            font-size: 1.4em;
+            margin: 0 4px;
+        }
+
+        .link-button {
+            background: none;
+            color: var(--muted);
+            text-decoration: underline;
+            font-size: 0.85em;
+            padding: 4px;
+        }
+
+        .ahead {
+            margin-top: 12px;
+            padding: 14px;
+            border-radius: 10px;
+            font-size: 1.5em;
+            font-weight: bold;
+            background: rgba(0, 123, 255, 0.1);
+            color: var(--primary);
+        }
+
+        .ahead.soon {
+            background: var(--soon);
+            color: #fff;
+        }
+
+        .ahead.now {
+            background: var(--now);
+            color: #fff;
+        }
+
+        .ahead.passed {
+            background: #ddd;
+            color: #555;
+        }
+
+        .wait {
+            margin-top: 8px;
+            font-size: 1.1em;
+            color: var(--muted);
         }
 
         .footer {
-            margin-top: 30px;
+            margin-top: 20px;
             font-size: 0.9em;
             color: #888;
+            text-align: center;
+            line-height: 1.6;
         }
     </style>
 </head>
 <body>
-    <div class="watermark-image"></div> 
-    <div class="container">
+    <div class="watermark-image"></div>
+
+    <main class="container">
+        <div id="statusBanner" class="status-banner" hidden></div>
         <div class="label">目前叫號</div>
-        <div id="currentNumber">
-            <span id="loadingText">載入中</span>
+        <div id="currentNumber" class="loading" aria-live="polite">載入中</div>
+        <div id="connection" class="connection"></div>
+    </main>
+
+    <section class="container">
+        <form id="myForm" class="my-form">
+            <label for="myInput">輸入我的號碼，看看前面還有幾位</label>
+            <div class="row">
+                <input id="myInput" type="number" inputmode="numeric" min="1" max="9999" placeholder="號碼牌上的號碼" required>
+                <button type="submit">確定</button>
+            </div>
+        </form>
+        <div id="myResult" hidden>
+            <div class="my-line">
+                我的號碼<strong id="myNumber"></strong>
+                <button type="button" id="myClear" class="link-button">修改</button>
+            </div>
+            <div id="myAhead" class="ahead" aria-live="polite"></div>
+            <div id="myWait" class="wait"></div>
         </div>
-    </div>
-    <div class="footer">
-        
-    </div>
+    </section>
 
+    <footer class="footer">
+        國光同濟會 捐血活動<br>
+        預估時間僅供參考，請以現場叫號為準
+    </footer>
+
+    <script src="config.js"></script>
     <script>
-        const API_URL = 'https://script.google.com/macros/s/AKfycbyHiRm-ZAJROA6hhtPaumG9THqwWEKcpjKtJHvURsI2mCZks3Rtp4aIN4rvK2TyFXl_/exec'; // **重要：將這裡替換成你剛剛複製的 Apps Script URL**
+        const POLL_MS = 5000;
+        const TIMEOUT_MS = 8000;
+        const MAX_RETRY_MS = 30000;
+        const SOON_AHEAD = 3; // 前面剩幾位時提醒「快輪到您了」
+        const MY_NUMBER_KEY = 'myNumber';
 
-        function updateNumber() {
-            fetch(API_URL)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Network response was not ok ' + response.statusText);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data && data.number !== undefined) {
-                        document.getElementById('currentNumber').textContent = data.number;
-                    } else {
-                        console.error('API 返回數據格式不正確:', data);
-                        document.getElementById('currentNumber').textContent = '錯誤 (數據)';
-                    }
-                })
-                .catch(error => {
-                    console.error('獲取號碼失敗:', error);
-                    document.getElementById('currentNumber').textContent = '錯誤 (連線)';
-                });
+        const els = {
+            number: document.getElementById('currentNumber'),
+            connection: document.getElementById('connection'),
+            status: document.getElementById('statusBanner'),
+            form: document.getElementById('myForm'),
+            input: document.getElementById('myInput'),
+            result: document.getElementById('myResult'),
+            myNumber: document.getElementById('myNumber'),
+            ahead: document.getElementById('myAhead'),
+            wait: document.getElementById('myWait'),
+        };
+
+        let state = null;        // 最後一次成功取得的資料
+        let lastSuccess = null;  // 最後一次成功連線的時間
+        let failures = 0;
+        let timer = null;
+        let inFlight = false;
+        let myNumber = loadMyNumber();
+        let lastLevel = null;
+
+        function today() {
+            const d = new Date();
+            return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
         }
 
-        setInterval(updateNumber, 3000);
-        updateNumber();
+        // 只保留當天輸入的號碼，下次活動不會看到舊號碼
+        function loadMyNumber() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(MY_NUMBER_KEY));
+                return saved && saved.date === today() ? saved.number : null;
+            } catch (err) {
+                return null;
+            }
+        }
+
+        function saveMyNumber(number) {
+            try {
+                if (number === null) localStorage.removeItem(MY_NUMBER_KEY);
+                else localStorage.setItem(MY_NUMBER_KEY, JSON.stringify({ number: number, date: today() }));
+            } catch (err) {
+                // 無痕模式等情況無法儲存，僅本次瀏覽有效
+            }
+        }
+
+        function formatTime(date) {
+            return date.toLocaleTimeString('zh-TW', { hour12: false });
+        }
+
+        function formatWait(seconds) {
+            const minutes = Math.max(1, Math.round(seconds / 60));
+            if (minutes < 60) return minutes + ' 分鐘';
+            return Math.floor(minutes / 60) + ' 小時' + (minutes % 60 ? ' ' + (minutes % 60) + ' 分鐘' : '');
+        }
+
+        async function poll() {
+            clearTimeout(timer);
+            if (document.hidden || inFlight) return;
+            inFlight = true;
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+            try {
+                const response = await fetch(API_URL, { cache: 'no-store', signal: controller.signal });
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                const data = await response.json();
+                if (!data || data.number === undefined) throw new Error('資料格式不正確');
+                failures = 0;
+                lastSuccess = new Date();
+                renderState(data);
+            } catch (err) {
+                failures++;
+                console.error('獲取號碼失敗:', err);
+            } finally {
+                clearTimeout(timeout);
+                inFlight = false;
+                renderConnection();
+                // 連線失敗時逐次拉長重試間隔，避免人多時一起狂打 API
+                if (!document.hidden) {
+                    const delay = failures ? Math.min(POLL_MS * 2 ** failures, MAX_RETRY_MS) : POLL_MS;
+                    timer = setTimeout(poll, delay);
+                }
+            }
+        }
+
+        function renderState(data) {
+            const previous = state;
+            state = data;
+
+            const text = data.number === '' || data.number === null ? '—' : String(data.number);
+            if (els.number.textContent !== text || els.number.classList.contains('loading')) {
+                els.number.textContent = text;
+                els.number.classList.remove('loading', 'changed');
+                if (previous) {
+                    void els.number.offsetWidth; // 重新觸發動畫
+                    els.number.classList.add('changed');
+                }
+                document.title = text + ' 號｜國光同濟會 捐血叫號';
+            }
+
+            els.status.textContent = data.status || '';
+            els.status.hidden = !data.status;
+
+            renderMyNumber();
+        }
+
+        function renderConnection() {
+            els.connection.classList.toggle('warn', failures > 0);
+            if (failures === 0) {
+                els.connection.textContent = '已更新 ' + formatTime(lastSuccess);
+            } else if (lastSuccess) {
+                els.connection.textContent = '連線不穩，重新連線中…（最後更新 ' + formatTime(lastSuccess) + '）';
+            } else if (failures >= 2) {
+                els.connection.textContent = '無法連線，請檢查網路，系統會自動重試';
+            }
+        }
+
+        function renderMyNumber() {
+            els.form.hidden = myNumber !== null;
+            els.result.hidden = myNumber === null;
+            if (myNumber === null) {
+                lastLevel = null;
+                return;
+            }
+            els.myNumber.textContent = myNumber;
+
+            const current = state ? Number(state.number) : NaN;
+            if (!state || state.number === '' || !Number.isFinite(current)) {
+                els.ahead.className = 'ahead';
+                els.ahead.textContent = '等待叫號資料…';
+                els.wait.textContent = '';
+                return;
+            }
+
+            const remaining = myNumber - current; // 還要再叫幾號才輪到我
+            const ahead = remaining - 1;           // 排在我前面、還沒被叫到的人數
+            let level;
+            if (remaining < 0) {
+                level = 'passed';
+                els.ahead.textContent = '您的號碼已過號，請洽現場工作人員';
+            } else if (remaining === 0) {
+                level = 'now';
+                els.ahead.textContent = '輪到您了！請依現場指示前往';
+            } else if (ahead === 0) {
+                level = 'soon';
+                els.ahead.textContent = '下一位就是您了！';
+            } else if (ahead <= SOON_AHEAD) {
+                level = 'soon';
+                els.ahead.textContent = '前面還有 ' + ahead + ' 位，快輪到您了！';
+            } else {
+                level = 'waiting';
+                els.ahead.textContent = '前面還有 ' + ahead + ' 位';
+            }
+            els.ahead.className = 'ahead ' + level;
+
+            els.wait.textContent = remaining > 0 && state.secPerNumber
+                ? '預估約 ' + formatWait(remaining * state.secPerNumber) + '（依目前叫號速度推算）'
+                : level === 'soon' ? '請回到現場等候' : '';
+
+            // 狀態變成「快到了」或「輪到了」時震動提醒（Android 支援，iPhone 不支援）
+            if (lastLevel !== null && level !== lastLevel && (level === 'soon' || level === 'now') && navigator.vibrate) {
+                navigator.vibrate([300, 150, 300]);
+            }
+            lastLevel = level;
+        }
+
+        els.form.addEventListener('submit', event => {
+            event.preventDefault();
+            const value = Number(els.input.value);
+            if (!Number.isInteger(value) || value < 1 || value > 9999) return;
+            myNumber = value;
+            lastLevel = null;
+            saveMyNumber(myNumber);
+            renderMyNumber();
+        });
+
+        document.getElementById('myClear').addEventListener('click', () => {
+            els.input.value = myNumber;
+            myNumber = null;
+            saveMyNumber(null);
+            renderMyNumber();
+            els.input.focus();
+        });
+
+        // 切到背景（切出 LINE、鎖螢幕）時暫停更新，回來時立即更新
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) clearTimeout(timer);
+            else poll();
+        });
+
+        renderMyNumber();
+        poll();
     </script>
 </body>
 </html>

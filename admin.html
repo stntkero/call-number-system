@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>叫號控制台｜國光同濟會 捐血叫號</title>
+    <link rel="icon" href="logo.jpg">
+    <style>
+        :root {
+            --primary: #007bff;
+            --text: #333;
+            --muted: #666;
+            --ok: #1e9e4a;
+            --warn: #c0392b;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, 'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
+            margin: 0;
+            padding: 16px;
+            box-sizing: border-box;
+            min-height: 100vh;
+            min-height: 100dvh;
+            background-color: #f0f2f5;
+            color: var(--text);
+        }
+
+        .wrap {
+            max-width: 480px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 1.3em;
+            text-align: center;
+            margin: 4px 0 16px;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 15px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+
+        .card h2 {
+            font-size: 1.05em;
+            color: var(--muted);
+            margin: 0 0 12px;
+        }
+
+        .current {
+            text-align: center;
+        }
+
+        #number {
+            font-size: clamp(4.5rem, 28vw, 8rem);
+            font-weight: bold;
+            line-height: 1.1;
+            color: var(--primary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        #currentStatus {
+            color: #7a5200;
+            font-weight: bold;
+            min-height: 1.4em;
+        }
+
+        button {
+            font: inherit;
+            cursor: pointer;
+            border: none;
+            border-radius: 10px;
+            padding: 12px 16px;
+            background: #e4e7eb;
+            color: var(--text);
+            touch-action: manipulation; /* 避免連點被當成縮放 */
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: wait;
+        }
+
+        button.primary {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        #nextBtn {
+            display: block;
+            width: 100%;
+            font-size: 2em;
+            font-weight: bold;
+            padding: 24px 0;
+            margin-top: 12px;
+        }
+
+        #prevBtn {
+            display: block;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .row {
+            display: flex;
+            gap: 8px;
+        }
+
+        input {
+            flex: 1;
+            min-width: 0;
+            font: inherit;
+            font-size: 1.15em;
+            padding: 10px 12px;
+            border: 2px solid #ccc;
+            border-radius: 10px;
+            box-sizing: border-box;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .presets {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .presets button {
+            padding: 8px 12px;
+            font-size: 0.95em;
+        }
+
+        .remember {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 12px;
+            color: var(--muted);
+        }
+
+        #message {
+            position: fixed;
+            left: 16px;
+            right: 16px;
+            bottom: 16px;
+            max-width: 480px;
+            margin: 0 auto;
+            padding: 12px 16px;
+            border-radius: 10px;
+            color: #fff;
+            text-align: center;
+            font-weight: bold;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        #message.ok { background: var(--ok); }
+        #message.error { background: var(--warn); }
+
+        .footer-links {
+            display: flex;
+            justify-content: space-between;
+            color: var(--muted);
+        }
+
+        .footer-links a,
+        .footer-links button {
+            color: var(--muted);
+            background: none;
+            padding: 4px;
+            text-decoration: underline;
+            font-size: 0.95em;
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <h1>捐血叫號控制台</h1>
+
+        <form id="loginView" class="card">
+            <h2>工作人員登入</h2>
+            <div class="row">
+                <input id="pinInput" type="password" inputmode="numeric" autocomplete="current-password" placeholder="請輸入密碼" required>
+                <button type="submit" class="primary">登入</button>
+            </div>
+            <label class="remember"><input id="rememberInput" type="checkbox" checked style="flex: none;"> 在這支手機上記住密碼</label>
+        </form>
+
+        <div id="mainView" hidden>
+            <div class="card current">
+                <h2>目前叫號</h2>
+                <div id="number">—</div>
+                <div id="currentStatus"></div>
+                <button id="nextBtn" class="primary" data-action="next">下一號 ＋1</button>
+                <button id="prevBtn" data-action="prev">上一號 −1（按錯時使用）</button>
+            </div>
+
+            <form id="setForm" class="card">
+                <h2>直接設定號碼</h2>
+                <div class="row">
+                    <input id="setInput" type="number" inputmode="numeric" min="0" max="9999" placeholder="例如 1" required>
+                    <button type="submit">設定</button>
+                </div>
+            </form>
+
+            <form id="statusForm" class="card">
+                <h2>公告（顯示在叫號頁上方，空白則不顯示）</h2>
+                <div class="row">
+                    <input id="statusInput" type="text" maxlength="100" placeholder="例如：午休中，13:30 恢復叫號">
+                    <button type="submit">更新</button>
+                </div>
+                <div class="presets">
+                    <button type="button" data-status="尚未開始，請稍候">尚未開始</button>
+                    <button type="button" data-status="休息中，請稍候">休息中</button>
+                    <button type="button" data-status="今日已額滿，謝謝您的熱心">今日額滿</button>
+                    <button type="button" data-status="">清除公告</button>
+                </div>
+            </form>
+
+            <div class="footer-links">
+                <a href="./" target="_blank">開啟叫號頁</a>
+                <button type="button" id="logoutBtn">登出</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="message" role="status" hidden></div>
+
+    <script src="config.js"></script>
+    <script>
+        const PIN_KEY = 'adminPin';
+        const REFRESH_MS = 5000;
+        const TIMEOUT_MS = 15000;
+
+        const els = {
+            loginView: document.getElementById('loginView'),
+            mainView: document.getElementById('mainView'),
+            pinInput: document.getElementById('pinInput'),
+            rememberInput: document.getElementById('rememberInput'),
+            number: document.getElementById('number'),
+            currentStatus: document.getElementById('currentStatus'),
+            setInput: document.getElementById('setInput'),
+            statusInput: document.getElementById('statusInput'),
+            message: document.getElementById('message'),
+        };
+
+        let pin = loadPin();
+        let busy = false;
+        let refreshTimer = null;
+        let messageTimer = null;
+
+        function loadPin() {
+            try {
+                return localStorage.getItem(PIN_KEY) || sessionStorage.getItem(PIN_KEY);
+            } catch (err) {
+                return null;
+            }
+        }
+
+        function savePin(value, remember) {
+            try {
+                localStorage.removeItem(PIN_KEY);
+                sessionStorage.removeItem(PIN_KEY);
+                if (value) (remember ? localStorage : sessionStorage).setItem(PIN_KEY, value);
+            } catch (err) {
+                // 無法儲存時只在本次頁面有效
+            }
+        }
+
+        function showMessage(text, type) {
+            clearTimeout(messageTimer);
+            els.message.textContent = text;
+            els.message.className = type;
+            els.message.hidden = false;
+            messageTimer = setTimeout(() => { els.message.hidden = true; }, type === 'error' ? 5000 : 2500);
+        }
+
+        function setBusy(value) {
+            busy = value;
+            document.querySelectorAll('#mainView button, #loginView button').forEach(btn => { btn.disabled = value; });
+        }
+
+        function renderState(state) {
+            els.number.textContent = state.number === '' || state.number === null ? '—' : state.number;
+            els.currentStatus.textContent = state.status ? '公告：' + state.status : '';
+        }
+
+        function showView(loggedIn) {
+            els.loginView.hidden = loggedIn;
+            els.mainView.hidden = !loggedIn;
+            clearTimeout(refreshTimer);
+            if (loggedIn) refresh();
+        }
+
+        // 使用 text/plain 送出，避免瀏覽器對 Apps Script 發出 CORS 預檢請求
+        async function send(action, value) {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ pin: pin, action: action, value: value }),
+                    signal: controller.signal,
+                });
+                return await response.json();
+            } catch (err) {
+                console.error('送出失敗:', err);
+                return { ok: false, error: '連線失敗，請確認號碼是否已更新後再試' };
+            } finally {
+                clearTimeout(timeout);
+            }
+        }
+
+        async function run(action, value, successText) {
+            if (busy) return false;
+            setBusy(true);
+            const result = await send(action, value);
+            setBusy(false);
+            if (!result.ok) {
+                showMessage(result.error || '操作失敗', 'error');
+                if (result.error === '密碼錯誤') logout();
+                return false;
+            }
+            renderState(result.state);
+            showMessage(successText(result.state), 'ok');
+            return true;
+        }
+
+        // 定期同步，讓多位工作人員看到一致的號碼
+        async function refresh() {
+            clearTimeout(refreshTimer);
+            if (document.hidden || els.mainView.hidden) return;
+            if (!busy) {
+                try {
+                    const response = await fetch(API_URL, { cache: 'no-store' });
+                    const state = await response.json();
+                    if (!busy) renderState(state);
+                } catch (err) {
+                    console.error('同步失敗:', err);
+                }
+            }
+            refreshTimer = setTimeout(refresh, REFRESH_MS);
+        }
+
+        function logout() {
+            pin = null;
+            savePin(null);
+            els.pinInput.value = '';
+            showView(false);
+        }
+
+        els.loginView.addEventListener('submit', async event => {
+            event.preventDefault();
+            pin = els.pinInput.value.trim();
+            if (await run('login', null, () => '登入成功')) {
+                savePin(pin, els.rememberInput.checked);
+                showView(true);
+            } else {
+                pin = null;
+            }
+        });
+
+        document.getElementById('nextBtn').addEventListener('click', () => {
+            run('next', null, state => '已叫到 ' + state.number + ' 號');
+        });
+
+        document.getElementById('prevBtn').addEventListener('click', () => {
+            run('prev', null, state => '已退回 ' + state.number + ' 號');
+        });
+
+        document.getElementById('setForm').addEventListener('submit', async event => {
+            event.preventDefault();
+            const value = Number(els.setInput.value);
+            if (!confirm('確定要把目前號碼設為 ' + value + ' 號嗎？')) return;
+            if (await run('set', value, state => '已設定為 ' + state.number + ' 號')) els.setInput.value = '';
+        });
+
+        document.getElementById('statusForm').addEventListener('submit', event => {
+            event.preventDefault();
+            const text = els.statusInput.value.trim();
+            run('status', text, () => text ? '公告已更新' : '公告已清除');
+        });
+
+        document.querySelectorAll('[data-status]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                els.statusInput.value = btn.dataset.status;
+                const text = btn.dataset.status;
+                run('status', text, () => text ? '公告已更新' : '公告已清除');
+            });
+        });
+
+        document.getElementById('logoutBtn').addEventListener('click', logout);
+
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) refresh();
+        });
+
+        showView(Boolean(pin));
+    </script>
+</body>
+</html>
