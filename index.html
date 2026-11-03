@@ -550,6 +550,7 @@
                     if (alerts.on) {
                         alerts.wakeLock = lock;
                         ok = true;
+                        renderAlertButton(); // 清掉先前失敗時留下的警告
                     } else {
                         lock.release().catch(() => {}); // 等待期間已關閉提醒
                     }
