@@ -7,7 +7,9 @@
  *   叫號紀錄    每次號碼變動自動新增一列：時間、號碼、來源（第一次使用時自動建立）
  *
  * 指令碼屬性（專案設定 → 指令碼屬性）：
- *   ADMIN_PIN   叫號頁的密碼，建議 6 碼以上
+ *   ADMIN_PIN                  叫號頁的密碼，建議 6 碼以上
+ *   LINE_CHANNEL_ACCESS_TOKEN  （選用）LINE 查詢功能的 Channel access token
+ *   LINE_WEBHOOK_KEY           （選用）LINE Webhook 網址上的秘密參數 ?key=...
  */
 
 const MAIN_SHEET = '工作表1';
@@ -21,31 +23,55 @@ const LOG_ROWS_FOR_ESTIMATE = 20; // 用最近幾筆紀錄估算叫號速度
 const MAX_GAP_SECONDS = 20 * 60;  // 超過 20 分鐘的間隔視為休息，不納入估算
 const MAX_NUMBER = 9999;
 const MAX_STATUS_LENGTH = 100;
+const SOON_AHEAD = 3;             // 與叫號頁相同：前面剩幾位時提醒「快輪到您了」
+const PAGE_URL = 'https://stntkero.github.io/call-number-system/';
 
 const PIN_FAIL_KEY = 'pinFail';
 const PIN_FAIL_LIMIT = 20;        // 10 分鐘內密碼錯誤超過此次數就暫停登入
 const PIN_FAIL_WINDOW_SECONDS = 10 * 60;
 
-/** 捐血者頁面：讀取目前狀態（有快取，人多時也不會每次都讀試算表） */
+/** 捐血者頁面：讀取目前狀態 */
 function doGet() {
+  return ContentService.createTextOutput(getStateJson_()).setMimeType(ContentService.MimeType.JSON);
+}
+
+/** 工作人員叫號頁（修改號碼或狀態，需要密碼），以及 LINE 官方帳號的 Webhook */
+function doPost(e) {
+  let body;
+  try {
+    body = JSON.parse(e.postData.contents);
+  } catch (err) {
+    body = null;
+  }
+
+  if (body && Array.isArray(body.events)) {
+    try {
+      handleLineWebhook_(body, e.parameter || {});
+    } catch (err) {
+      console.error('LINE Webhook 處理失敗', err);
+    }
+    // LINE 只看 HTTP 狀態碼；用 HtmlService 回應，避免 ContentService 的轉址
+    return HtmlService.createHtmlOutput('OK');
+  }
+
+  let result;
+  try {
+    result = body ? handleAdmin_(body) : { ok: false, error: '請求格式錯誤' };
+  } catch (err) {
+    result = { ok: false, error: '請求格式錯誤' };
+  }
+  return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+}
+
+/** 有快取的目前狀態，人多時也不會每次都讀試算表 */
+function getStateJson_() {
   const cache = CacheService.getScriptCache();
   let json = cache.get(CACHE_KEY);
   if (!json) {
     json = JSON.stringify(readState_());
     cache.put(CACHE_KEY, json, CACHE_SECONDS);
   }
-  return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
-}
-
-/** 工作人員叫號頁：修改號碼或狀態，需要密碼 */
-function doPost(e) {
-  let result;
-  try {
-    result = handleAdmin_(JSON.parse(e.postData.contents));
-  } catch (err) {
-    result = { ok: false, error: '請求格式錯誤' };
-  }
-  return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+  return json;
 }
 
 /** 工作人員直接在試算表改 A1 時，自動寫入叫號紀錄（簡易觸發條件，不需另外設定） */
@@ -177,4 +203,83 @@ function appendLog_(ss, number, source) {
 
 function getMainSheet_(ss) {
   return ss.getSheetByName(MAIN_SHEET) || ss.getSheets()[0];
+}
+
+/**
+ * LINE 官方帳號：捐血者傳「查詢」或自己的號碼，就回覆目前叫號。
+ * 只用回覆訊息（Reply），不計入官方帳號每月的訊息額度；其他訊息不回應，不影響真人聊天。
+ */
+function handleLineWebhook_(body, params) {
+  const props = PropertiesService.getScriptProperties();
+  const token = props.getProperty('LINE_CHANNEL_ACCESS_TOKEN');
+  const key = props.getProperty('LINE_WEBHOOK_KEY');
+  // Apps Script 讀不到 X-Line-Signature 標頭，改用網址上的秘密參數擋掉偽造的請求
+  if (!token || !key || params.key !== key) return;
+
+  body.events.forEach(event => {
+    if (event.type !== 'message' || !event.message || event.message.type !== 'text' || !event.replyToken) return;
+    const query = parseLineQuery_(event.message.text);
+    if (!query) return;
+    replyLine_(token, event.replyToken, describeQueue_(JSON.parse(getStateJson_()), query.number));
+  });
+}
+
+/** 看得懂的訊息：「查詢」「叫號」等關鍵字，或只有號碼（例如「230」「查詢 230」「230號」） */
+function parseLineQuery_(text) {
+  const normalized = String(text)
+    .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 48)) // 全形數字轉半形
+    .replace(/\s+/g, '');
+  if (/^(查詢|查询|叫號|叫号|目前叫號|目前叫号|現在幾號|现在几号)$/.test(normalized)) return { number: null };
+  const match = normalized.match(/^(?:查詢|查询|我的號碼|我的号码|號碼|号码)?[#＃]?(\d{1,4})[號号]?$/);
+  if (match && Number(match[1]) > 0) return { number: Number(match[1]) };
+  return null;
+}
+
+function describeQueue_(state, myNumber) {
+  const lines = [];
+  if (state.status) lines.push('【公告】' + state.status);
+
+  const current = Number(state.number);
+  if (state.number === '' || state.number === null || !Number.isFinite(current)) {
+    lines.push('目前尚未開始叫號。');
+  } else {
+    lines.push('目前叫號：' + current + ' 號');
+    if (myNumber !== null) {
+      const remaining = myNumber - current; // 還要再叫幾號才輪到您
+      const ahead = remaining - 1;           // 排在您前面、還沒被叫到的人數
+      lines.push('您的號碼：' + myNumber + ' 號');
+      if (remaining < 0) lines.push('您的號碼已過號，請洽現場工作人員。');
+      else if (remaining === 0) lines.push('輪到您了！請依現場指示前往。');
+      else if (ahead === 0) lines.push('下一位就是您了！請回到現場等候。');
+      else if (ahead <= SOON_AHEAD) lines.push('前面還有 ' + ahead + ' 位，快輪到您了！請回到現場等候。');
+      else lines.push('前面還有 ' + ahead + ' 位。');
+      if (remaining > 0 && state.secPerNumber) {
+        lines.push('預估約 ' + formatWait_(remaining * state.secPerNumber) + '（僅供參考）');
+      }
+    }
+  }
+
+  lines.push('');
+  lines.push('即時叫號與聲音提醒：' + PAGE_URL);
+  if (myNumber === null) lines.push('傳送您的號碼（例如：230），可查詢前面還有幾位。');
+  return lines.join('\n');
+}
+
+function formatWait_(seconds) {
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  if (minutes < 60) return minutes + ' 分鐘';
+  return Math.floor(minutes / 60) + ' 小時' + (minutes % 60 ? ' ' + (minutes % 60) + ' 分鐘' : '');
+}
+
+function replyLine_(token, replyToken, text) {
+  const response = UrlFetchApp.fetch('https://api.line.me/v2/bot/message/reply', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + token },
+    payload: JSON.stringify({ replyToken: replyToken, messages: [{ type: 'text', text: text }] }),
+    muteHttpExceptions: true,
+  });
+  if (response.getResponseCode() !== 200) {
+    console.error('LINE 回覆失敗', response.getResponseCode(), response.getContentText());
+  }
 }

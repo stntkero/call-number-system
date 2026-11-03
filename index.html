@@ -212,6 +212,47 @@
             color: var(--muted);
         }
 
+        .alert-button {
+            display: block;
+            width: 100%;
+            margin-top: 16px;
+            padding: 14px;
+            font-size: 1.2em;
+            font-weight: bold;
+            background: #fff;
+            color: var(--primary);
+            border: 2px solid var(--primary);
+        }
+
+        .alert-button.on {
+            background: var(--now);
+            border-color: var(--now);
+            color: #fff;
+        }
+
+        .alert-hint {
+            margin-top: 8px;
+            font-size: 0.95em;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        /* 快輪到時整頁閃爍，讓放在桌上的手機也看得到 */
+        body.flash {
+            animation: flash 0.6s steps(1) 10;
+        }
+
+        @keyframes flash {
+            50% { background-color: var(--soon); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            body.flash {
+                animation: none;
+                background-color: #ffe0b3;
+            }
+        }
+
         .footer {
             margin-top: 20px;
             font-size: 0.9em;
@@ -246,6 +287,8 @@
             </div>
             <div id="myAhead" class="ahead" aria-live="polite"></div>
             <div id="myWait" class="wait"></div>
+            <button type="button" id="alertBtn" class="alert-button">🔔 開啟聲音提醒</button>
+            <div id="alertHint" class="alert-hint">快輪到您時，手機會發出提示音並閃爍畫面。</div>
         </div>
     </section>
 
@@ -260,6 +303,7 @@
         const TIMEOUT_MS = 8000;
         const MAX_RETRY_MS = 30000;
         const SOON_AHEAD = 3; // 前面剩幾位時提醒「快輪到您了」
+        const HIDDEN_POLL_MS = 10000; // 開啟提醒後，頁面縮小到背景時的更新間隔
         const MY_NUMBER_KEY = 'myNumber';
 
         const els = {
@@ -272,6 +316,8 @@
             myNumber: document.getElementById('myNumber'),
             ahead: document.getElementById('myAhead'),
             wait: document.getElementById('myWait'),
+            alertBtn: document.getElementById('alertBtn'),
+            alertHint: document.getElementById('alertHint'),
         };
 
         let state = null;        // 最後一次成功取得的資料
@@ -281,6 +327,7 @@
         let inFlight = false;
         let myNumber = loadMyNumber();
         let lastLevel = null;
+        const alerts = { on: false, audio: null, sounds: null, wakeLock: null, flashTimer: null };
 
         function today() {
             const d = new Date();
@@ -318,7 +365,7 @@
 
         async function poll() {
             clearTimeout(timer);
-            if (document.hidden || inFlight) return;
+            if ((document.hidden && !alerts.on) || inFlight) return;
             inFlight = true;
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -338,8 +385,9 @@
                 inFlight = false;
                 renderConnection();
                 // 連線失敗時逐次拉長重試間隔，避免人多時一起狂打 API
-                if (!document.hidden) {
-                    const delay = failures ? Math.min(POLL_MS * 2 ** failures, MAX_RETRY_MS) : POLL_MS;
+                if (!document.hidden || alerts.on) {
+                    let delay = failures ? Math.min(POLL_MS * 2 ** failures, MAX_RETRY_MS) : POLL_MS;
+                    if (document.hidden) delay = Math.max(delay, HIDDEN_POLL_MS);
                     timer = setTimeout(poll, delay);
                 }
             }
@@ -419,12 +467,104 @@
                 ? '預估約 ' + formatWait(remaining * state.secPerNumber) + '（依目前叫號速度推算）'
                 : level === 'soon' ? '請回到現場等候' : '';
 
-            // 狀態變成「快到了」或「輪到了」時震動提醒（Android 支援，iPhone 不支援）
-            if (lastLevel !== null && level !== lastLevel && (level === 'soon' || level === 'now') && navigator.vibrate) {
-                navigator.vibrate([300, 150, 300]);
+            if (lastLevel !== null && level !== lastLevel && (level === 'soon' || level === 'now')) {
+                playAlert(level);
             }
             lastLevel = level;
         }
+
+        // 產生提示音（WAV），不需要另外放音效檔。pattern 為 [頻率, 毫秒]，頻率 0 代表靜音
+        function makeSound(pattern, times) {
+            const rate = 8000;
+            const samples = [];
+            for (let t = 0; t < times; t++) {
+                for (const [freq, ms] of pattern) {
+                    const n = Math.round(rate * ms / 1000);
+                    for (let i = 0; i < n; i++) {
+                        const fade = Math.min(1, i / 80, (n - i) / 80); // 頭尾淡入淡出，避免爆音
+                        samples.push(freq ? Math.sin(2 * Math.PI * freq * i / rate) * 0.8 * fade : 0);
+                    }
+                }
+            }
+            const view = new DataView(new ArrayBuffer(44 + samples.length * 2));
+            const writeText = (offset, text) => [...text].forEach((c, i) => view.setUint8(offset + i, c.charCodeAt(0)));
+            writeText(0, 'RIFF');
+            view.setUint32(4, 36 + samples.length * 2, true);
+            writeText(8, 'WAVEfmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);          // PCM
+            view.setUint16(22, 1, true);          // 單聲道
+            view.setUint32(24, rate, true);
+            view.setUint32(28, rate * 2, true);
+            view.setUint16(32, 2, true);
+            view.setUint16(34, 16, true);
+            writeText(36, 'data');
+            view.setUint32(40, samples.length * 2, true);
+            samples.forEach((sample, i) => view.setInt16(44 + i * 2, sample * 32767, true));
+            return URL.createObjectURL(new Blob([view], { type: 'audio/wav' }));
+        }
+
+        function playAlert(level) {
+            // 震動：Android 支援，iPhone 不支援
+            if (navigator.vibrate) navigator.vibrate(level === 'now' ? [600, 200, 600, 200, 600] : [300, 150, 300]);
+            if (!alerts.on) return;
+
+            alerts.audio.src = alerts.sounds[level];
+            alerts.audio.currentTime = 0;
+            alerts.audio.play().catch(err => console.warn('提示音播放失敗:', err));
+
+            clearTimeout(alerts.flashTimer);
+            document.body.classList.remove('flash');
+            void document.body.offsetWidth; // 重新觸發動畫
+            document.body.classList.add('flash');
+            alerts.flashTimer = setTimeout(() => document.body.classList.remove('flash'), 6000);
+        }
+
+        async function requestWakeLock() {
+            if (!alerts.on || document.hidden || !('wakeLock' in navigator)) return;
+            try {
+                alerts.wakeLock = await navigator.wakeLock.request('screen');
+            } catch (err) {
+                console.warn('無法保持螢幕常亮:', err); // LINE 內建瀏覽器可能不支援
+            }
+        }
+
+        function renderAlertButton() {
+            els.alertBtn.classList.toggle('on', alerts.on);
+            els.alertBtn.textContent = alerts.on ? '🔔 聲音提醒已開啟（按此關閉）' : '🔔 開啟聲音提醒';
+            els.alertHint.textContent = alerts.on
+                ? '請保持此頁開啟、不要鎖定螢幕，並關閉手機的靜音模式。'
+                : '快輪到您時，手機會發出提示音並閃爍畫面。';
+        }
+
+        els.alertBtn.addEventListener('click', () => {
+            if (alerts.on) {
+                alerts.on = false;
+                if (alerts.wakeLock) alerts.wakeLock.release().catch(() => {});
+                alerts.wakeLock = null;
+                renderAlertButton();
+                if (document.hidden) clearTimeout(timer);
+                return;
+            }
+            if (!alerts.audio) {
+                alerts.sounds = {
+                    soon: makeSound([[880, 200], [0, 120], [880, 200], [0, 500]], 3),
+                    now: makeSound([[988, 300], [0, 100], [1319, 500], [0, 400]], 4),
+                };
+                alerts.audio = new Audio();
+            }
+            try {
+                if (navigator.audioSession) navigator.audioSession.type = 'playback'; // iPhone：靜音模式下也盡量發聲
+            } catch (err) {
+                // 不支援時忽略
+            }
+            // 必須在點擊當下先播放一次，iPhone 之後才允許自動播放；同時讓使用者確認聽得到
+            alerts.audio.src = alerts.sounds.soon;
+            alerts.audio.play().catch(err => console.warn('提示音播放失敗:', err));
+            alerts.on = true;
+            renderAlertButton();
+            requestWakeLock();
+        });
 
         els.form.addEventListener('submit', event => {
             event.preventDefault();
@@ -444,10 +584,15 @@
             els.input.focus();
         });
 
-        // 切到背景（切出 LINE、鎖螢幕）時暫停更新，回來時立即更新
+        // 切到背景（切出 LINE、鎖螢幕）時暫停更新，回來時立即更新；
+        // 開啟提醒時則放慢頻率繼續更新（手機若仍允許執行，例如 LINE 縮小成浮動視窗）
         document.addEventListener('visibilitychange', () => {
-            if (document.hidden) clearTimeout(timer);
-            else poll();
+            if (document.hidden) {
+                if (!alerts.on) clearTimeout(timer);
+            } else {
+                poll();
+                requestWakeLock(); // 螢幕常亮在切到背景時會被系統取消，回來時重新要求
+            }
         });
 
         renderMyNumber();
