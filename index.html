@@ -111,6 +111,12 @@
             }
         }
 
+        .pace {
+            font-size: 1.1em;
+            color: var(--muted);
+            margin-bottom: 4px;
+        }
+
         .connection {
             font-size: 0.95em;
             color: var(--muted);
@@ -128,6 +134,12 @@
             font-size: 1.3em;
             font-weight: bold;
             margin-bottom: 10px;
+        }
+
+        .my-form .form-hint {
+            margin: -4px 0 12px;
+            color: var(--muted);
+            line-height: 1.5;
         }
 
         .my-form .row {
@@ -269,15 +281,17 @@
         <div id="statusBanner" class="status-banner" hidden></div>
         <div class="label">目前叫號</div>
         <div id="currentNumber" class="loading" aria-live="polite">載入中</div>
+        <div id="pace" class="pace" hidden></div>
         <div id="connection" class="connection"></div>
     </main>
 
     <section class="container">
         <form id="myForm" class="my-form">
-            <label for="myInput">輸入我的號碼，看看前面還有幾位</label>
+            <label for="myInput">🔔 快輪到我時提醒我</label>
+            <p class="form-hint">輸入號碼牌上的號碼，快輪到時手機會發出提示音並閃爍畫面。</p>
             <div class="row">
                 <input id="myInput" type="number" inputmode="numeric" min="1" max="9999" placeholder="號碼牌上的號碼" required>
-                <button type="submit">確定</button>
+                <button type="submit">提醒我</button>
             </div>
         </form>
         <div id="myResult" hidden>
@@ -288,7 +302,7 @@
             <div id="myAhead" class="ahead" aria-live="polite"></div>
             <div id="myWait" class="wait"></div>
             <button type="button" id="alertBtn" class="alert-button">🔔 開啟聲音提醒</button>
-            <div id="alertHint" class="alert-hint">快輪到您時，手機會發出提示音並閃爍畫面。</div>
+            <div id="alertHint" class="alert-hint"></div>
         </div>
     </section>
 
@@ -308,6 +322,7 @@
 
         const els = {
             number: document.getElementById('currentNumber'),
+            pace: document.getElementById('pace'),
             connection: document.getElementById('connection'),
             status: document.getElementById('statusBanner'),
             form: document.getElementById('myForm'),
@@ -410,6 +425,10 @@
 
             els.status.textContent = data.status || '';
             els.status.hidden = !data.status;
+
+            // 不輸入號碼也能自己估算等待時間
+            els.pace.textContent = data.secPerNumber ? '目前每號約 ' + formatWait(data.secPerNumber) : '';
+            els.pace.hidden = !data.secPerNumber;
 
             renderMyNumber();
         }
@@ -531,6 +550,7 @@
                     if (alerts.on) {
                         alerts.wakeLock = lock;
                         ok = true;
+                        renderAlertButton(); // 清掉先前失敗時留下的警告
                     } else {
                         lock.release().catch(() => {}); // 等待期間已關閉提醒
                     }
@@ -557,25 +577,26 @@
 
         function renderAlertButton() {
             els.alertBtn.classList.toggle('on', alerts.on);
-            els.alertBtn.textContent = alerts.on ? '🔔 聲音提醒已開啟（按此關閉）' : '🔔 開啟聲音提醒';
+            els.alertBtn.textContent = alerts.on ? '🔔 提醒已開啟（按此關閉）' : '🔔 開啟聲音提醒';
             els.alertHint.textContent = alerts.on
                 ? '請保持此頁開啟、不要鎖定螢幕，並關閉手機的靜音模式。'
-                : '快輪到您時，手機會發出提示音並閃爍畫面。';
+                : '聲音提醒已關閉，需要時再按一次開啟。';
         }
 
-        els.alertBtn.addEventListener('click', () => {
-            if (alerts.on) {
-                alerts.on = false;
-                if (alerts.audio) alerts.audio.pause();
-                if (navigator.vibrate) navigator.vibrate(0);
-                clearTimeout(alerts.flashTimer);
-                document.body.classList.remove('flash');
-                if (alerts.wakeLock) alerts.wakeLock.release().catch(() => {});
-                alerts.wakeLock = null;
-                renderAlertButton();
-                if (document.hidden) clearTimeout(timer);
-                return;
-            }
+        function disableAlerts() {
+            alerts.on = false;
+            if (alerts.audio) alerts.audio.pause();
+            if (navigator.vibrate) navigator.vibrate(0);
+            clearTimeout(alerts.flashTimer);
+            document.body.classList.remove('flash');
+            if (alerts.wakeLock) alerts.wakeLock.release().catch(() => {});
+            alerts.wakeLock = null;
+            renderAlertButton();
+            if (document.hidden) clearTimeout(timer);
+        }
+
+        // 必須在使用者點擊（或按 Enter 送出）的當下呼叫，手機才允許之後自動播放提示音
+        function enableAlerts() {
             if (!alerts.audio) {
                 alerts.sounds = {
                     soon: makeSound([[880, 200], [0, 120], [880, 200], [0, 500]], 3),
@@ -594,8 +615,14 @@
             alerts.on = true;
             renderAlertButton();
             requestWakeLock();
+        }
+
+        els.alertBtn.addEventListener('click', () => {
+            if (alerts.on) disableAlerts();
+            else enableAlerts();
         });
 
+        // 輸入號碼按「提醒我」就直接開啟提醒，不用再按第二個按鈕
         els.form.addEventListener('submit', event => {
             event.preventDefault();
             const value = Number(els.input.value);
@@ -604,12 +631,14 @@
             lastLevel = null;
             saveMyNumber(myNumber);
             renderMyNumber();
+            enableAlerts();
         });
 
         document.getElementById('myClear').addEventListener('click', () => {
             els.input.value = myNumber;
             myNumber = null;
             saveMyNumber(null);
+            if (alerts.on) disableAlerts();
             renderMyNumber();
             els.input.focus();
         });
@@ -625,6 +654,8 @@
             }
         });
 
+        renderAlertButton();
+        if (myNumber !== null) els.alertHint.textContent = '重新開啟頁面後，請再按一次上面的按鈕開啟聲音提醒。';
         renderMyNumber();
         poll();
     </script>
