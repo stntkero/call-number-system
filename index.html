@@ -467,8 +467,10 @@
                 ? '預估約 ' + formatWait(remaining * state.secPerNumber) + '（依目前叫號速度推算）'
                 : level === 'soon' ? '請回到現場等候' : '';
 
-            if (lastLevel !== null && level !== lastLevel && (level === 'soon' || level === 'now')) {
-                playAlert(level);
+            // 背景更新較慢或連按兩次「下一號」時，可能從「快到了」直接跳到「已過號」，也要提醒
+            const skippedNow = level === 'passed' && (lastLevel === 'waiting' || lastLevel === 'soon');
+            if (lastLevel !== null && level !== lastLevel && (level === 'soon' || level === 'now' || skippedNow)) {
+                playAlert(skippedNow ? 'now' : level);
             }
             lastLevel = level;
         }
@@ -521,12 +523,36 @@
         }
 
         async function requestWakeLock() {
-            if (!alerts.on || document.hidden || !('wakeLock' in navigator)) return;
-            try {
-                alerts.wakeLock = await navigator.wakeLock.request('screen');
-            } catch (err) {
-                console.warn('無法保持螢幕常亮:', err); // LINE 內建瀏覽器可能不支援
+            if (!alerts.on || document.hidden) return;
+            let ok = false;
+            if ('wakeLock' in navigator) {
+                try {
+                    const lock = await navigator.wakeLock.request('screen');
+                    if (alerts.on) {
+                        alerts.wakeLock = lock;
+                        ok = true;
+                    } else {
+                        lock.release().catch(() => {}); // 等待期間已關閉提醒
+                    }
+                } catch (err) {
+                    console.warn('無法保持螢幕常亮:', err);
+                }
             }
+            // LINE 內建瀏覽器（特別是 Android）通常無法保持螢幕常亮，螢幕自動關閉後就不會響，要明確告訴使用者
+            if (!ok && alerts.on) showWakeLockWarning();
+        }
+
+        function showWakeLockWarning() {
+            const url = new URL(location.href);
+            url.searchParams.set('openExternalBrowser', '1'); // LINE 會改用手機的 Chrome／Safari 開啟
+            const link = document.createElement('a');
+            link.href = url.href;
+            link.textContent = '改用 Chrome／Safari 開啟此頁';
+            els.alertHint.replaceChildren(
+                '⚠️ 這個瀏覽器無法讓螢幕保持常亮，螢幕自動關閉後就不會響。請暫時把手機的「自動鎖定／螢幕逾時」調長，或',
+                link,
+                '（開啟後要重新輸入號碼並開啟提醒）。'
+            );
         }
 
         function renderAlertButton() {
@@ -540,6 +566,10 @@
         els.alertBtn.addEventListener('click', () => {
             if (alerts.on) {
                 alerts.on = false;
+                if (alerts.audio) alerts.audio.pause();
+                if (navigator.vibrate) navigator.vibrate(0);
+                clearTimeout(alerts.flashTimer);
+                document.body.classList.remove('flash');
                 if (alerts.wakeLock) alerts.wakeLock.release().catch(() => {});
                 alerts.wakeLock = null;
                 renderAlertButton();

@@ -214,10 +214,15 @@ function handleLineWebhook_(body, params) {
   const token = props.getProperty('LINE_CHANNEL_ACCESS_TOKEN');
   const key = props.getProperty('LINE_WEBHOOK_KEY');
   // Apps Script 讀不到 X-Line-Signature 標頭，改用網址上的秘密參數擋掉偽造的請求
-  if (!token || !key || params.key !== key) return;
+  if (!token || !key) {
+    console.warn('LINE 查詢未設定：缺少 LINE_CHANNEL_ACCESS_TOKEN 或 LINE_WEBHOOK_KEY');
+    return;
+  }
+  if (params.key !== key) return;
 
   body.events.forEach(event => {
     if (event.type !== 'message' || !event.message || event.message.type !== 'text' || !event.replyToken) return;
+    if (!event.source || event.source.type !== 'user') return; // 只回應一對一聊天
     const query = parseLineQuery_(event.message.text);
     if (!query) return;
     replyLine_(token, event.replyToken, describeQueue_(JSON.parse(getStateJson_()), query.number));
@@ -228,8 +233,8 @@ function handleLineWebhook_(body, params) {
 function parseLineQuery_(text) {
   const normalized = String(text)
     .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 48)) // 全形數字轉半形
-    .replace(/\s+/g, '');
-  if (/^(查詢|查询|叫號|叫号|目前叫號|目前叫号|現在幾號|现在几号)$/.test(normalized)) return { number: null };
+    .replace(/[\s:：,，、。!！?？~～]+/g, ''); // 去掉空白和標點（不含「.」，避免 2.30 變成 230）
+  if (/^(查詢|查询|叫號|叫号|目前叫號|目前叫号|現在幾號|现在几号)(?:了|呢)?$/.test(normalized)) return { number: null };
   const match = normalized.match(/^(?:查詢|查询|我的號碼|我的号码|號碼|号码)?[#＃]?(\d{1,4})[號号]?$/);
   if (match && Number(match[1]) > 0) return { number: Number(match[1]) };
   return null;
@@ -245,13 +250,14 @@ function describeQueue_(state, myNumber) {
   } else {
     lines.push('目前叫號：' + current + ' 號');
     if (myNumber !== null) {
-      const remaining = myNumber - current; // 還要再叫幾號才輪到您
-      const ahead = remaining - 1;           // 排在您前面、還沒被叫到的人數
-      lines.push('您的號碼：' + myNumber + ' 號');
-      if (remaining < 0) lines.push('您的號碼已過號，請洽現場工作人員。');
-      else if (remaining === 0) lines.push('輪到您了！請依現場指示前往。');
-      else if (ahead === 0) lines.push('下一位就是您了！請回到現場等候。');
-      else if (ahead <= SOON_AHEAD) lines.push('前面還有 ' + ahead + ' 位，快輪到您了！請回到現場等候。');
+      // 用中性的說法：數字也可能是回答工作人員問題（例如「幾位」）而不是號碼牌
+      const remaining = myNumber - current; // 還要再叫幾號才輪到這個號碼
+      const ahead = remaining - 1;           // 排在前面、還沒被叫到的人數
+      lines.push('查詢號碼：' + myNumber + ' 號');
+      if (remaining < 0) lines.push('此號碼已過號，若是您的號碼，請洽現場工作人員。');
+      else if (remaining === 0) lines.push('輪到 ' + myNumber + ' 號了！請依現場指示前往。');
+      else if (ahead === 0) lines.push('下一位就是 ' + myNumber + ' 號！請回到現場等候。');
+      else if (ahead <= SOON_AHEAD) lines.push('前面還有 ' + ahead + ' 位，快輪到了！請回到現場等候。');
       else lines.push('前面還有 ' + ahead + ' 位。');
       if (remaining > 0 && state.secPerNumber) {
         lines.push('預估約 ' + formatWait_(remaining * state.secPerNumber) + '（僅供參考）');
