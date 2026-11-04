@@ -313,11 +313,15 @@
 
     <script src="config.js"></script>
     <script>
-        const POLL_MS = 5000;
+        // Apps Script 同一帳號最多同時執行約 30 個，人多時要控制更新頻率。
+        // 號碼約 5～10 分鐘才前進一號，一般 20 秒更新一次就夠；快輪到的人才加快
+        const POLL_MS = 20000;
+        const NEAR_POLL_MS = 5000;
+        const NEAR_REMAINING = 6;     // 再叫幾號內就輪到我時加快更新（前面剩 5 位）
         const TIMEOUT_MS = 8000;
-        const MAX_RETRY_MS = 30000;
+        const MAX_RETRY_MS = 60000;
         const SOON_AHEAD = 3; // 前面剩幾位時提醒「快輪到您了」
-        const HIDDEN_POLL_MS = 10000; // 開啟提醒後，頁面縮小到背景時的更新間隔
+        const HIDDEN_POLL_MS = 10000; // 開啟提醒後，頁面縮小到背景時的最短更新間隔
         const MY_NUMBER_KEY = 'myNumber';
 
         const els = {
@@ -399,13 +403,19 @@
                 clearTimeout(timeout);
                 inFlight = false;
                 renderConnection();
-                // 連線失敗時逐次拉長重試間隔，避免人多時一起狂打 API
-                if (!document.hidden || alerts.on) {
-                    let delay = failures ? Math.min(POLL_MS * 2 ** failures, MAX_RETRY_MS) : POLL_MS;
-                    if (document.hidden) delay = Math.max(delay, HIDDEN_POLL_MS);
-                    timer = setTimeout(poll, delay);
-                }
+                if (!document.hidden || alerts.on) timer = setTimeout(poll, nextDelay());
             }
+        }
+
+        function nextDelay() {
+            const hasNumber = state && state.number !== '' && state.number !== null; // 尚未開始叫號時不算「快輪到」
+            const remaining = myNumber !== null && hasNumber ? myNumber - Number(state.number) : NaN;
+            let delay = remaining > 0 && remaining <= NEAR_REMAINING ? NEAR_POLL_MS : POLL_MS;
+            // 連線失敗時從平常的間隔開始逐次加倍，不會比平常更頻繁，避免在 Google 忙碌時雪上加霜
+            if (failures) delay = Math.min(delay * 2 ** (failures - 1), MAX_RETRY_MS);
+            if (document.hidden) delay = Math.max(delay, HIDDEN_POLL_MS);
+            // 每支手機錯開 ±20%，避免大家在同一秒一起讀取
+            return Math.round(delay * (0.8 + Math.random() * 0.4));
         }
 
         function renderState(data) {
@@ -632,6 +642,7 @@
             saveMyNumber(myNumber);
             renderMyNumber();
             enableAlerts();
+            poll(); // 立即更新，並依我的號碼調整更新頻率
         });
 
         document.getElementById('myClear').addEventListener('click', () => {
