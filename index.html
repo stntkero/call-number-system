@@ -318,7 +318,6 @@
         const POLL_MS = 20000;
         const NEAR_POLL_MS = 5000;
         const NEAR_REMAINING = 6;     // 再叫幾號內就輪到我時加快更新（前面剩 5 位）
-        const RETRY_MS = 5000;        // 連線失敗後第一次重試，之後逐次加倍
         const TIMEOUT_MS = 8000;
         const MAX_RETRY_MS = 60000;
         const SOON_AHEAD = 3; // 前面剩幾位時提醒「快輪到您了」
@@ -409,13 +408,11 @@
         }
 
         function nextDelay() {
-            let delay;
-            if (failures) {
-                delay = Math.min(RETRY_MS * 2 ** (failures - 1), MAX_RETRY_MS); // 連線失敗時逐次拉長重試間隔
-            } else {
-                const remaining = myNumber !== null && state ? myNumber - Number(state.number) : NaN;
-                delay = remaining > 0 && remaining <= NEAR_REMAINING ? NEAR_POLL_MS : POLL_MS;
-            }
+            const hasNumber = state && state.number !== '' && state.number !== null; // 尚未開始叫號時不算「快輪到」
+            const remaining = myNumber !== null && hasNumber ? myNumber - Number(state.number) : NaN;
+            let delay = remaining > 0 && remaining <= NEAR_REMAINING ? NEAR_POLL_MS : POLL_MS;
+            // 連線失敗時從平常的間隔開始逐次加倍，不會比平常更頻繁，避免在 Google 忙碌時雪上加霜
+            if (failures) delay = Math.min(delay * 2 ** (failures - 1), MAX_RETRY_MS);
             if (document.hidden) delay = Math.max(delay, HIDDEN_POLL_MS);
             // 每支手機錯開 ±20%，避免大家在同一秒一起讀取
             return Math.round(delay * (0.8 + Math.random() * 0.4));
