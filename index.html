@@ -29,7 +29,7 @@
             min-height: 100vh;
             min-height: 100dvh; /* 扣掉手機瀏覽器工具列的實際高度 */
             margin: 0;
-            padding: 16px;
+            padding: 16px clamp(24px, 7vw, 48px); /* 框框左右和螢幕邊緣保持距離 */
             box-sizing: border-box;
             background-color: #f0f2f5;
             color: var(--text);
