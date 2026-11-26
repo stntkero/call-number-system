@@ -7,7 +7,7 @@
     <meta name="description" content="國光同濟會捐血活動即時叫號。">
     <meta property="og:type" content="website">
     <meta property="og:title" content="國光同濟會 捐血叫號">
-    <meta property="og:description" content="即時查看目前叫號與叫號速度。">
+    <meta property="og:description" content="即時查看目前叫號。">
     <meta property="og:image" content="https://stntkero.github.io/call-number-system/logo.jpg">
     <meta property="og:url" content="https://stntkero.github.io/call-number-system/">
     <link rel="icon" href="logo.jpg">
@@ -110,12 +110,6 @@
             }
         }
 
-        .pace {
-            font-size: 1.1em;
-            color: var(--muted);
-            margin-bottom: 4px;
-        }
-
         .connection {
             font-size: 0.95em;
             color: var(--muted);
@@ -143,13 +137,12 @@
         <div id="statusBanner" class="status-banner" hidden></div>
         <div class="label">目前叫號</div>
         <div id="currentNumber" class="loading" aria-live="polite">載入中</div>
-        <div id="pace" class="pace" hidden></div>
         <div id="connection" class="connection"></div>
     </main>
 
     <footer class="footer">
         國光同濟會 捐血活動<br>
-        叫號速度僅供參考，請以現場叫號為準
+        請以現場叫號為準
     </footer>
 
     <script src="config.js"></script>
@@ -162,7 +155,6 @@
 
         const els = {
             number: document.getElementById('currentNumber'),
-            pace: document.getElementById('pace'),
             connection: document.getElementById('connection'),
             status: document.getElementById('statusBanner'),
         };
@@ -175,12 +167,6 @@
 
         function formatTime(date) {
             return date.toLocaleTimeString('zh-TW', { hour12: false });
-        }
-
-        function formatWait(seconds) {
-            const minutes = Math.max(1, Math.round(seconds / 60));
-            if (minutes < 60) return minutes + ' 分鐘';
-            return Math.floor(minutes / 60) + ' 小時' + (minutes % 60 ? ' ' + (minutes % 60) + ' 分鐘' : '');
         }
 
         async function poll() {
@@ -232,10 +218,6 @@
 
             els.status.textContent = data.status || '';
             els.status.hidden = !data.status;
-
-            // 看號碼牌和叫號速度，就能自己估算等待時間
-            els.pace.textContent = data.secPerNumber ? '目前每號約 ' + formatWait(data.secPerNumber) : '';
-            els.pace.hidden = !data.secPerNumber;
         }
 
         function renderConnection() {
