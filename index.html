@@ -81,6 +81,7 @@
             line-height: 1.15;
             color: var(--primary);
             font-variant-numeric: tabular-nums;
+            animation: pulse 1.5s infinite alternate; /* 平常輕微跳動，看起來是即時的 */
         }
 
         #currentNumber.loading {
@@ -89,9 +90,14 @@
             animation: blink 0.8s infinite alternate;
         }
 
-        /* 號碼變動時閃一下，平常保持靜止 */
+        /* 號碼變動時先閃一下，再繼續平常的跳動 */
         #currentNumber.changed {
-            animation: called 1.2s ease-out;
+            animation: called 1.2s ease-out, pulse 1.5s 1.2s infinite alternate;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.05); opacity: 0.9; }
         }
 
         @keyframes blink {
@@ -104,6 +110,7 @@
         }
 
         @media (prefers-reduced-motion: reduce) {
+            #currentNumber,
             #currentNumber.loading,
             #currentNumber.changed {
                 animation: none;
