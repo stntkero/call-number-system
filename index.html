@@ -51,13 +51,14 @@
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
             text-align: center;
             width: 100%;
-            max-width: 600px;
-            padding: 24px 20px;
+            max-width: 1200px;
+            min-height: 62vh;
+            min-height: 62dvh; /* 框框撐滿大部分畫面，內容垂直置中 */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 30px 20px;
             box-sizing: border-box;
-        }
-
-        .container + .container {
-            margin-top: 16px;
         }
 
         .status-banner {
@@ -70,15 +71,19 @@
             font-weight: bold;
         }
 
+        /* 文字大小跟著螢幕等比例縮放，現場的平板或電視也看得清楚 */
         .label {
-            font-size: 2em;
+            font-size: 2.2rem;
+            font-size: min(10vw, 7dvh);
             color: #555;
         }
 
         #currentNumber {
-            font-size: clamp(4rem, 26vw, 10rem); /* 窄螢幕自動縮小，四位數也放得下 */
+            font-size: 10rem;
+            font-size: min(48vw, 34dvh); /* 螢幕放不下時由 fitNumber() 縮小 */
+            line-height: 1.2;
             font-weight: bold;
-            line-height: 1.15;
+            white-space: nowrap;
             color: var(--primary);
             font-variant-numeric: tabular-nums;
             animation: pulse 1.5s infinite alternate; /* 平常輕微跳動，看起來是即時的 */
@@ -118,7 +123,7 @@
         }
 
         .connection {
-            font-size: 0.95em;
+            font-size: clamp(0.95rem, 2.6dvh, 2rem);
             color: var(--muted);
             min-height: 1.4em;
         }
@@ -130,7 +135,7 @@
 
         .footer {
             margin-top: 20px;
-            font-size: 0.9em;
+            font-size: clamp(0.85rem, 1.8dvh, 1.4rem);
             color: #888;
             text-align: center;
             line-height: 1.6;
@@ -216,6 +221,7 @@
             if (els.number.textContent !== text || els.number.classList.contains('loading')) {
                 els.number.textContent = text;
                 els.number.classList.remove('loading', 'changed');
+                fitNumber();
                 if (previous) {
                     void els.number.offsetWidth; // 重新觸發動畫
                     els.number.classList.add('changed');
@@ -225,6 +231,16 @@
 
             els.status.textContent = data.status || '';
             els.status.hidden = !data.status;
+        }
+
+        // 只有螢幕太窄、數字放不下時才縮小到剛好放得下，其他時候維持最大
+        function fitNumber() {
+            els.number.style.fontSize = '';
+            if (els.number.classList.contains('loading')) return;
+            const overflow = els.number.scrollWidth / els.number.clientWidth;
+            if (overflow > 1) {
+                els.number.style.fontSize = Math.floor(parseFloat(getComputedStyle(els.number).fontSize) / overflow) + 'px';
+            }
         }
 
         function renderConnection() {
@@ -243,6 +259,8 @@
             if (document.hidden) clearTimeout(timer);
             else poll();
         });
+
+        window.addEventListener('resize', fitNumber); // 手機轉向時重新調整
 
         poll();
     </script>
