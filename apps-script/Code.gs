@@ -23,7 +23,7 @@ const LOG_ROWS_FOR_ESTIMATE = 20; // 用最近幾筆紀錄估算叫號速度
 const MAX_GAP_SECONDS = 20 * 60;  // 超過 20 分鐘的間隔視為休息，不納入估算
 const MAX_NUMBER = 9999;
 const MAX_STATUS_LENGTH = 100;
-const SOON_AHEAD = 3;             // 與叫號頁相同：前面剩幾位時提醒「快輪到您了」
+const SOON_AHEAD = 3;             // 前面剩幾位時回覆「快輪到了」
 const PAGE_URL = 'https://stntkero.github.io/call-number-system/';
 
 const PIN_FAIL_KEY = 'pinFail';
@@ -266,7 +266,7 @@ function describeQueue_(state, myNumber) {
   }
 
   lines.push('');
-  lines.push('即時叫號與聲音提醒：' + PAGE_URL);
+  lines.push('即時叫號：' + PAGE_URL);
   if (myNumber === null) lines.push('傳送您的號碼（例如：230），可查詢前面還有幾位。');
   return lines.join('\n');
 }
